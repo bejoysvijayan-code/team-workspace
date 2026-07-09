@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   initialClients, initialTeam, initialProjects, initialTasks,
   initialInvoices, initialLearningItems,
 } from './data/sampleData'
 import { nextId } from './utils'
+import { loadState, saveState } from './persistence'
 import Dashboard from './components/Dashboard'
 import ProjectBoard from './components/ProjectBoard'
 import MyTasks from './components/MyTasks'
@@ -16,12 +17,17 @@ import LoginScreen from './components/LoginScreen'
 const SESSION_KEY = 'twLoggedInUserId'
 
 export default function App() {
-  const [clients, setClients] = useState(initialClients)
-  const [team, setTeam] = useState(initialTeam)
-  const [projects, setProjects] = useState(initialProjects)
-  const [tasks, setTasks] = useState(initialTasks)
-  const [invoices, setInvoices] = useState(initialInvoices)
-  const [learningItems, setLearningItems] = useState(initialLearningItems)
+  const [stored] = useState(() => loadState())
+  const [clients, setClients] = useState(stored?.clients ?? initialClients)
+  const [team, setTeam] = useState(stored?.team ?? initialTeam)
+  const [projects, setProjects] = useState(stored?.projects ?? initialProjects)
+  const [tasks, setTasks] = useState(stored?.tasks ?? initialTasks)
+  const [invoices, setInvoices] = useState(stored?.invoices ?? initialInvoices)
+  const [learningItems, setLearningItems] = useState(stored?.learningItems ?? initialLearningItems)
+
+  useEffect(() => {
+    saveState({ clients, team, projects, tasks, invoices, learningItems })
+  }, [clients, team, projects, tasks, invoices, learningItems])
 
   const [loggedInUserId, setLoggedInUserId] = useState(() => {
     const stored = Number(localStorage.getItem(SESSION_KEY))
