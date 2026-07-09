@@ -11,8 +11,8 @@ export default function Invoices({ invoices, clients, addInvoice, updateInvoice,
   function handleAdd() {
     if (!description.trim() || !amount) return
     addInvoice({
-      clientId: Number(clientId), description: description.trim(), amount: Number(amount),
-      currency: 'INR', status: 'Pending', issueDate: '2026-07-09', due: '',
+      clientId, description: description.trim(), amount: Number(amount),
+      currency: 'INR', status: 'Pending', issueDate: new Date().toISOString().slice(0, 10), due: '',
     })
     setDescription('')
     setAmount('')

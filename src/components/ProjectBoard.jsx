@@ -13,9 +13,9 @@ export default function ProjectBoard({
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0]
 
-  function handleAddProject() {
+  async function handleAddProject() {
     if (!newProjectName.trim()) return
-    const id = addProject(newProjectName.trim(), Number(newProjectClient))
+    const id = await addProject(newProjectName.trim(), newProjectClient)
     setActiveProjectId(id)
     setNewProjectName('')
   }

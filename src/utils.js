@@ -1,5 +1,3 @@
-import { TODAY } from './data/sampleData'
-
 export function getPercent(task) {
   if (task.subtasks && task.subtasks.length > 0) {
     const done = task.subtasks.filter((s) => s.done).length
@@ -8,8 +6,12 @@ export function getPercent(task) {
   return task.manualPct || 0
 }
 
+export function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export function isOverdue(task) {
-  return task.status !== 'Done' && task.due < TODAY
+  return task.status !== 'Done' && task.due < today()
 }
 
 export function clientName(clients, clientId) {

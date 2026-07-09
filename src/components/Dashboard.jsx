@@ -1,16 +1,16 @@
-import { getPercent, isOverdue, clientName, teamName, formatDate, formatMoney } from '../utils'
+import { getPercent, isOverdue, clientName, teamName, formatDate, formatMoney, today } from '../utils'
 
 export default function Dashboard({ tasks, projects, invoices, clients, team, onOpenTask }) {
   const open = tasks.filter((t) => t.status !== 'Done')
   const overdue = tasks.filter((t) => isOverdue(t))
-  const weekFromNow = new Date('2026-07-16T00:00:00')
+  const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const dueThisWeek = tasks.filter((t) => t.status !== 'Done' && t.due && new Date(t.due + 'T00:00:00') <= weekFromNow)
   const unpaidTotal = invoices
     .filter((i) => i.status !== 'Paid')
     .reduce((sum, i) => sum + Number(i.amount), 0)
 
   const todayAndOverdue = tasks
-    .filter((t) => t.status !== 'Done' && t.due && t.due <= '2026-07-09')
+    .filter((t) => t.status !== 'Done' && t.due && t.due <= today())
     .sort((a, b) => (a.due < b.due ? -1 : 1))
 
   return (

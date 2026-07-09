@@ -36,7 +36,7 @@ export default function TaskModal({
           </label>
           <label>
             Assignee
-            <select value={task.assigneeId} onChange={(e) => updateTask(task.id, { assigneeId: Number(e.target.value) })}>
+            <select value={task.assigneeId} onChange={(e) => updateTask(task.id, { assigneeId: e.target.value })}>
               {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </label>

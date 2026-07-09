@@ -1,20 +1,31 @@
 import { useState } from 'react'
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '../firebase'
 
-export default function LoginScreen({ team, onLogin }) {
+const ERROR_MESSAGES = {
+  'auth/invalid-email': 'That email address looks invalid.',
+  'auth/user-not-found': 'Incorrect email or password.',
+  'auth/wrong-password': 'Incorrect email or password.',
+  'auth/invalid-credential': 'Incorrect email or password.',
+  'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+}
+
+export default function LoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    const match = team.find(
-      (m) => m.contact.toLowerCase() === email.trim().toLowerCase() && m.password === password
-    )
-    if (match) {
-      setError('')
-      onLogin(match.id)
-    } else {
-      setError('Incorrect email or password.')
+    setSubmitting(true)
+    setError('')
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password)
+    } catch (err) {
+      setError(ERROR_MESSAGES[err.code] || 'Could not log in. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -43,14 +54,7 @@ export default function LoginScreen({ team, onLogin }) {
 
         {error && <p className="login-error">{error}</p>}
 
-        <button type="submit">Log in</button>
-
-        <div className="login-hint">
-          <p className="muted small">Demo accounts</p>
-          {team.map((m) => (
-            <p key={m.id} className="muted small">{m.name} ({m.role}) · {m.contact}</p>
-          ))}
-        </div>
+        <button type="submit" disabled={submitting}>{submitting ? 'Logging in…' : 'Log in'}</button>
       </form>
     </div>
   )

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
 import {
-  initialClients, initialTeam, initialProjects, initialTasks,
-  initialInvoices, initialLearningItems,
-} from './data/sampleData'
+  collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
+  query, where, writeBatch, getDocs,
+} from 'firebase/firestore'
+import { auth, db } from './firebase'
 import { nextId } from './utils'
-import { loadState, saveState } from './persistence'
 import Dashboard from './components/Dashboard'
 import ProjectBoard from './components/ProjectBoard'
 import MyTasks from './components/MyTasks'
@@ -14,125 +15,127 @@ import LearningSpace from './components/LearningSpace'
 import TaskModal from './components/TaskModal'
 import LoginScreen from './components/LoginScreen'
 
-const SESSION_KEY = 'twLoggedInUserId'
-
 export default function App() {
-  const [stored] = useState(() => loadState())
-  const [clients, setClients] = useState(stored?.clients ?? initialClients)
-  const [team, setTeam] = useState(stored?.team ?? initialTeam)
-  const [projects, setProjects] = useState(stored?.projects ?? initialProjects)
-  const [tasks, setTasks] = useState(stored?.tasks ?? initialTasks)
-  const [invoices, setInvoices] = useState(stored?.invoices ?? initialInvoices)
-  const [learningItems, setLearningItems] = useState(stored?.learningItems ?? initialLearningItems)
+  const [authUser, setAuthUser] = useState(undefined) // undefined = checking, null = logged out
+  const [clients, setClients] = useState([])
+  const [team, setTeam] = useState([])
+  const [projects, setProjects] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [invoices, setInvoices] = useState([])
+  const [learningItems, setLearningItems] = useState([])
 
-  useEffect(() => {
-    saveState({ clients, team, projects, tasks, invoices, learningItems })
-  }, [clients, team, projects, tasks, invoices, learningItems])
-
-  const [loggedInUserId, setLoggedInUserId] = useState(() => {
-    const stored = Number(localStorage.getItem(SESSION_KEY))
-    return stored || null
-  })
   const [view, setView] = useState('dashboard')
   const [activeProjectId, setActiveProjectId] = useState(null)
   const [openTaskId, setOpenTaskId] = useState(null)
 
-  const currentUserId = loggedInUserId
-  const currentUser = team.find((t) => t.id === currentUserId)
+  useEffect(() => onAuthStateChanged(auth, setAuthUser), [])
+
+  useEffect(() => {
+    if (!authUser) return
+    const collections = [
+      ['clients', setClients],
+      ['team', setTeam],
+      ['projects', setProjects],
+      ['tasks', setTasks],
+      ['invoices', setInvoices],
+      ['learningItems', setLearningItems],
+    ]
+    const unsubs = collections.map(([name, setter]) =>
+      onSnapshot(collection(db, name), (snap) => setter(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+    )
+    return () => unsubs.forEach((u) => u())
+  }, [authUser])
+
+  const currentUser = team.find((t) => t.id === authUser?.uid) || null
   const isOwner = currentUser?.role === 'Owner'
 
-  function handleLogin(id) {
-    localStorage.setItem(SESSION_KEY, String(id))
-    setLoggedInUserId(id)
-  }
   function handleLogout() {
-    localStorage.removeItem(SESSION_KEY)
-    setLoggedInUserId(null)
+    signOut(auth)
     setView('dashboard')
   }
 
   // ---- Task helpers ----
   function updateTask(id, patch) {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+    updateDoc(doc(db, 'tasks', id), patch)
   }
   function addTask(projectId, title) {
-    const t = {
-      id: nextId(tasks), projectId, title, assigneeId: currentUserId,
+    addDoc(collection(db, 'tasks'), {
+      projectId, title, assigneeId: currentUser.id,
       status: 'To do', priority: 'Medium', due: '', manualPct: 0,
       notes: '', subtasks: [], comments: [],
-    }
-    setTasks((prev) => [...prev, t])
+    })
   }
   function deleteTask(id) {
-    setTasks((prev) => prev.filter((t) => t.id !== id))
+    deleteDoc(doc(db, 'tasks', id))
     if (openTaskId === id) setOpenTaskId(null)
   }
   function addSubtask(taskId, text) {
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t
-      const sub = { id: nextId(t.subtasks), text, done: false }
-      return { ...t, subtasks: [...t.subtasks, sub] }
-    }))
+    const t = tasks.find((t) => t.id === taskId)
+    if (!t) return
+    const sub = { id: nextId(t.subtasks), text, done: false }
+    updateDoc(doc(db, 'tasks', taskId), { subtasks: [...t.subtasks, sub] })
   }
   function toggleSubtask(taskId, subId) {
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t
-      return { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) }
-    }))
+    const t = tasks.find((t) => t.id === taskId)
+    if (!t) return
+    updateDoc(doc(db, 'tasks', taskId), {
+      subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)),
+    })
   }
   function deleteSubtask(taskId, subId) {
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t
-      return { ...t, subtasks: t.subtasks.filter((s) => s.id !== subId) }
-    }))
+    const t = tasks.find((t) => t.id === taskId)
+    if (!t) return
+    updateDoc(doc(db, 'tasks', taskId), { subtasks: t.subtasks.filter((s) => s.id !== subId) })
   }
   function addComment(taskId, text) {
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t
-      const c = { id: nextId(t.comments), author: currentUser?.name || 'You', text, ts: new Date().toISOString() }
-      return { ...t, comments: [...t.comments, c] }
-    }))
+    const t = tasks.find((t) => t.id === taskId)
+    if (!t) return
+    const c = { id: nextId(t.comments), author: currentUser?.name || 'You', text, ts: new Date().toISOString() }
+    updateDoc(doc(db, 'tasks', taskId), { comments: [...t.comments, c] })
   }
 
   // ---- Project helpers ----
-  function addProject(name, clientId) {
-    const p = { id: nextId(projects), name, clientId, brief: '', status: 'Active', due: '' }
-    setProjects((prev) => [...prev, p])
-    return p.id
+  async function addProject(name, clientId) {
+    const ref = await addDoc(collection(db, 'projects'), { name, clientId, brief: '', status: 'Active', due: '' })
+    return ref.id
   }
   function updateProject(id, patch) {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+    updateDoc(doc(db, 'projects', id), patch)
   }
-  function deleteProject(id) {
-    setProjects((prev) => prev.filter((p) => p.id !== id))
-    setTasks((prev) => prev.filter((t) => t.projectId !== id))
+  async function deleteProject(id) {
+    const batch = writeBatch(db)
+    const q = query(collection(db, 'tasks'), where('projectId', '==', id))
+    const snap = await getDocs(q)
+    snap.forEach((d) => batch.delete(d.ref))
+    batch.delete(doc(db, 'projects', id))
+    await batch.commit()
     if (activeProjectId === id) setActiveProjectId(null)
   }
 
   // ---- Invoice helpers ----
   function addInvoice(inv) {
-    setInvoices((prev) => [...prev, { ...inv, id: nextId(prev) }])
+    addDoc(collection(db, 'invoices'), inv)
   }
   function updateInvoice(id, patch) {
-    setInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)))
+    updateDoc(doc(db, 'invoices', id), patch)
   }
   function deleteInvoice(id) {
-    setInvoices((prev) => prev.filter((i) => i.id !== id))
+    deleteDoc(doc(db, 'invoices', id))
   }
 
   // ---- Client / team helpers ----
-  function addClient(c) { setClients((prev) => [...prev, { ...c, id: nextId(prev) }]) }
-  function updateClient(id, patch) { setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c))) }
-  function deleteClient(id) { setClients((prev) => prev.filter((c) => c.id !== id)) }
+  function addClient(c) { addDoc(collection(db, 'clients'), c) }
+  function updateClient(id, patch) { updateDoc(doc(db, 'clients', id), patch) }
+  function deleteClient(id) { deleteDoc(doc(db, 'clients', id)) }
 
-  function addTeamMember(m) { setTeam((prev) => [...prev, { ...m, id: nextId(prev) }]) }
-  function updateTeamMember(id, patch) { setTeam((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m))) }
-  function deleteTeamMember(id) { setTeam((prev) => prev.filter((m) => m.id !== id)) }
+  function addTeamMember(m) { addDoc(collection(db, 'team'), m) }
+  function updateTeamMember(id, patch) { updateDoc(doc(db, 'team', id), patch) }
+  function deleteTeamMember(id) { deleteDoc(doc(db, 'team', id)) }
 
   // ---- Learning helpers ----
-  function addLearningItem(item) { setLearningItems((prev) => [...prev, { ...item, id: nextId(prev) }]) }
-  function updateLearningItem(id, patch) { setLearningItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i))) }
-  function deleteLearningItem(id) { setLearningItems((prev) => prev.filter((i) => i.id !== id)) }
+  function addLearningItem(item) { addDoc(collection(db, 'learningItems'), item) }
+  function updateLearningItem(id, patch) { updateDoc(doc(db, 'learningItems', id), patch) }
+  function deleteLearningItem(id) { deleteDoc(doc(db, 'learningItems', id)) }
 
   const ownerNav = [
     ['dashboard', 'Dashboard'],
@@ -151,8 +154,18 @@ export default function App() {
 
   const openTask = tasks.find((t) => t.id === openTaskId) || null
 
+  if (authUser === undefined) {
+    return null
+  }
+  if (!authUser) {
+    return <LoginScreen />
+  }
   if (!currentUser) {
-    return <LoginScreen team={team} onLogin={handleLogin} />
+    return (
+      <div className="login-screen">
+        <p className="muted">Loading your profile…</p>
+      </div>
+    )
   }
 
   return (
@@ -191,7 +204,7 @@ export default function App() {
           )}
           {effectiveView === 'mytasks' && (
             <MyTasks
-              tasks={tasks} projects={projects} currentUserId={currentUserId}
+              tasks={tasks} projects={projects} currentUserId={currentUser.id}
               onOpenTask={(id) => setOpenTaskId(id)}
             />
           )}
