@@ -11,6 +11,9 @@ import Invoices from './components/Invoices'
 import ClientsTeam from './components/ClientsTeam'
 import LearningSpace from './components/LearningSpace'
 import TaskModal from './components/TaskModal'
+import LoginScreen from './components/LoginScreen'
+
+const SESSION_KEY = 'twLoggedInUserId'
 
 export default function App() {
   const [clients, setClients] = useState(initialClients)
@@ -20,13 +23,27 @@ export default function App() {
   const [invoices, setInvoices] = useState(initialInvoices)
   const [learningItems, setLearningItems] = useState(initialLearningItems)
 
-  const [currentUserId, setCurrentUserId] = useState(1) // 1 = Owner ("You")
+  const [loggedInUserId, setLoggedInUserId] = useState(() => {
+    const stored = Number(localStorage.getItem(SESSION_KEY))
+    return stored || null
+  })
   const [view, setView] = useState('dashboard')
   const [activeProjectId, setActiveProjectId] = useState(null)
   const [openTaskId, setOpenTaskId] = useState(null)
 
+  const currentUserId = loggedInUserId
   const currentUser = team.find((t) => t.id === currentUserId)
   const isOwner = currentUser?.role === 'Owner'
+
+  function handleLogin(id) {
+    localStorage.setItem(SESSION_KEY, String(id))
+    setLoggedInUserId(id)
+  }
+  function handleLogout() {
+    localStorage.removeItem(SESSION_KEY)
+    setLoggedInUserId(null)
+    setView('dashboard')
+  }
 
   // ---- Task helpers ----
   function updateTask(id, patch) {
@@ -128,17 +145,17 @@ export default function App() {
 
   const openTask = tasks.find((t) => t.id === openTaskId) || null
 
+  if (!currentUser) {
+    return <LoginScreen team={team} onLogin={handleLogin} />
+  }
+
   return (
     <div className="app">
       <header className="topbar">
         <h1>Team workspace</h1>
         <div className="role-switch">
-          <label>Viewing as</label>
-          <select value={currentUserId} onChange={(e) => { setCurrentUserId(Number(e.target.value)); setView('dashboard') }}>
-            {team.map((m) => (
-              <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
-            ))}
-          </select>
+          <span>Hi, {currentUser.name}</span>
+          <button className="logout-link" onClick={handleLogout}>Log out</button>
         </div>
       </header>
 

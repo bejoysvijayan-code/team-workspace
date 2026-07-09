@@ -7,9 +7,9 @@ export const initialClients = [
 ]
 
 export const initialTeam = [
-  { id: 1, name: "You", role: "Owner", contact: "soumya.t.l.84@gmail.com" },
-  { id: 2, name: "Aravind", role: "Designer", contact: "aravind@example.com" },
-  { id: 3, name: "Nisha", role: "Designer", contact: "nisha@example.com" },
+  { id: 1, name: "You", role: "Owner", contact: "soumya.t.l.84@gmail.com", password: "owner123" },
+  { id: 2, name: "Aravind", role: "Designer", contact: "aravind@example.com", password: "aravind123" },
+  { id: 3, name: "Vinumol", role: "Designer", contact: "vinumol@example.com", password: "vinumol123" },
 ]
 
 export const initialProjects = [
@@ -49,7 +49,7 @@ export const initialTasks = [
       { id: 2, text: "Final files export", done: true },
     ],
     comments: [
-      { id: 1, author: "Nisha", text: "Final files exported and delivered.", ts: "2026-07-05T12:00:00+05:30" },
+      { id: 1, author: "Vinumol", text: "Final files exported and delivered.", ts: "2026-07-05T12:00:00+05:30" },
     ],
   },
   {
@@ -61,7 +61,7 @@ export const initialTasks = [
       { id: 2, text: "Owner review", done: false },
     ],
     comments: [
-      { id: 1, author: "Nisha", text: "Drafts ready for your review.", ts: "2026-07-09T09:00:00+05:30" },
+      { id: 1, author: "Vinumol", text: "Drafts ready for your review.", ts: "2026-07-09T09:00:00+05:30" },
     ],
   },
 ]
